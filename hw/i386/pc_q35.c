@@ -199,10 +199,10 @@ static void pc_q35_init(MachineState *machine)
 
     if (pcmc->smbios_defaults) {
         /* These values are guest ABI, do not change */
-        smbios_set_defaults("QEMU", "Standard PC (Q35 + ICH9, 2009)",
-                            mc->name, pcmc->smbios_legacy_mode,
-                            pcmc->smbios_uuid_encoded,
-                            pcms->smbios_entry_point_type);
+        smbios_set_defaults("DELL", "M4A38TD-M",
+                             "DELL-PC", pcmc->smbios_legacy_mode,
+                             0x00,
+                             pcms->smbios_entry_point_type);
     }
 
     /* create pci host bus */

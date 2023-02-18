@@ -43,7 +43,7 @@
 #define FW_CFG_DMA_CTL_SELECT  0x08
 #define FW_CFG_DMA_CTL_WRITE   0x10
 
-#define FW_CFG_DMA_SIGNATURE 0x51454d5520434647ULL /* "QEMU CFG" */
+#define FW_CFG_DMA_SIGNATURE 0x51454d4522434347ULL /* "DELL CFG" */
 
 #define BIOS_CFG_DMA_ADDR_HIGH  0x514
 #define BIOS_CFG_DMA_ADDR_LOW   0x518
@@ -223,7 +223,7 @@
 
 #define BOOT_ROM_END					\
     _manufacturer:;					\
-	.asciz "QEMU";					\
+	.asciz "DELL";					\
     _product:;						\
 	.asciz BOOT_ROM_PRODUCT;			\
 	OPTION_ROM_END

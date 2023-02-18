@@ -278,7 +278,7 @@ static void integratorcm_init(Object *obj)
     /* ??? What should the high bits of this value be?  */
     s->cm_auxosc = 0x0007feff;
     s->cm_sdram = 0x00011122;
-    memcpy(integrator_spd + 73, "QEMU-MEMORY", 11);
+    memcpy(integrator_spd + 73, "DELL-MEMORY", 11);
     s->cm_init = 0x00000112;
     s->cm_refcnt_offset = muldiv64(qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL), 24,
                                    1000);

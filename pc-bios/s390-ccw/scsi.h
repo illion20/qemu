@@ -72,7 +72,7 @@ struct ScsiInquiryStd {
     uint8_t spc_version;    /* b2                                       */
     uint8_t b3;             /* b3 & 0x0f == resp_data_fmt == 2, must!   */
     uint8_t u1[1 + 1 + 1 + 1 + 8];  /* b4..b15 unused, b4 = (N - 1)     */
-    char prod_id[16];       /* "QEMU CD-ROM" is here                    */
+    char prod_id[16];       /* "DELL CD-ROM" is here                    */
     uint8_t u2[4            /* b32..b35 unused, mandatory               */
               + 8 + 12 + 1 + 1 + 8 * 2 + 22  /* b36..95 unused, optional*/
               + 0];          /* b96..bN unused, vendor specific          */

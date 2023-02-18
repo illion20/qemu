@@ -288,13 +288,13 @@ static void virt_build_smbios(LoongArchMachineState *lams)
     MachineClass *mc = MACHINE_GET_CLASS(lams);
     uint8_t *smbios_tables, *smbios_anchor;
     size_t smbios_tables_len, smbios_anchor_len;
-    const char *product = "QEMU Virtual Machine";
+    const char *product = "DELL Virtual Machine";
 
     if (!lams->fw_cfg) {
         return;
     }
 
-    smbios_set_defaults("QEMU", product, mc->name, false,
+    smbios_set_defaults("DELL", product, mc->name, false,
                         true, SMBIOS_ENTRY_POINT_TYPE_64);
 
     smbios_get_tables(ms, NULL, 0, &smbios_tables, &smbios_tables_len,

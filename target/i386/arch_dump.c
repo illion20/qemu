@@ -338,7 +338,7 @@ static inline int cpu_write_qemu_note(WriteCoreDumpFunction f,
     void *note;
     char *buf;
     int descsz, note_size, name_size = 5, note_head_size;
-    const char *name = "QEMU";
+    const char *name = "DELL";
     int ret;
 
     qemu_get_cpustate(&state, env);
@@ -431,7 +431,7 @@ int cpu_get_dump_info(ArchDumpInfo *info,
 
 ssize_t cpu_get_note_size(int class, int machine, int nr_cpus)
 {
-    int name_size = 5; /* "CORE" or "QEMU" */
+    int name_size = 5; /* "CORE" or "DELL" */
     size_t elf_note_size = 0;
     size_t qemu_note_size = 0;
     int elf_desc_size = 0;

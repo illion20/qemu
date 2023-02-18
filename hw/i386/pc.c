@@ -103,9 +103,9 @@
  * depending on QEMU versions up to QEMU 2.4.
  */
 #define PC_CPU_MODEL_IDS(v) \
-    { "qemu32-" TYPE_X86_CPU, "model-id", "QEMU Virtual CPU version " v, },\
-    { "qemu64-" TYPE_X86_CPU, "model-id", "QEMU Virtual CPU version " v, },\
-    { "athlon-" TYPE_X86_CPU, "model-id", "QEMU Virtual CPU version " v, },
+    { "dell32-" TYPE_X86_CPU, "model-id", "DELL CPU version " v, },\
+    { "dell64-" TYPE_X86_CPU, "model-id", "DELL CPU version " v, },\
+    { "athlon-" TYPE_X86_CPU, "model-id", "DELL CPU version " v, },
 
 GlobalProperty pc_compat_7_2[] = {
     { "ICH9-LPC", "noreboot", "true" },
