@@ -41,7 +41,8 @@
 #include "hw/qdev-properties.h"
 #include "hw/s390x/tod.h"
 #include "sysemu/sysemu.h"
-#include "hw/s390x/pv.h"
+#include "sysemu/cpus.h"
+#include "target/s390x/kvm/pv.h"
 #include "migration/blocker.h"
 #include "qapi/visitor.h"
 
@@ -108,6 +109,7 @@ static const char *const reset_dev_types[] = {
     "s390-flic",
     "diag288",
     TYPE_S390_PCI_HOST_BRIDGE,
+    TYPE_AP_BRIDGE,
 };
 
 static void subsystem_reset(void)
@@ -221,10 +223,6 @@ static void s390_create_virtio_net(BusState *bus, const char *name)
         NICInfo *nd = &nd_table[i];
         DeviceState *dev;
 
-        if (!nd->model) {
-            nd->model = g_strdup("virtio");
-        }
-
         qemu_check_nic_model(nd, "virtio");
 
         dev = qdev_new(name);
@@ -244,6 +242,7 @@ static void s390_create_sclpconsole(const char *type, Chardev *chardev)
 
 static void ccw_init(MachineState *machine)
 {
+    MachineClass *mc = MACHINE_GET_CLASS(machine);
     int ret;
     VirtualCssBus *css_bus;
     DeviceState *dev;
@@ -291,7 +290,7 @@ static void ccw_init(MachineState *machine)
     }
 
     /* Create VirtIO network adapters */
-    s390_create_virtio_net(BUS(css_bus), "virtio-net-ccw");
+    s390_create_virtio_net(BUS(css_bus), mc->default_nic);
 
     /* init consoles */
     if (serial_hd(0)) {
@@ -329,7 +328,9 @@ static inline void s390_do_cpu_ipl(CPUState *cs, run_on_cpu_data arg)
 
 static void s390_machine_unprotect(S390CcwMachineState *ms)
 {
-    s390_pv_vm_disable();
+    if (!s390_pv_vm_try_disable_async(ms)) {
+        s390_pv_vm_disable();
+    }
     ms->pv = false;
     migrate_del_blocker(pv_mig_blocker);
     error_free_or_abort(&pv_mig_blocker);
@@ -437,10 +438,20 @@ static void s390_machine_reset(MachineState *machine, ShutdownCause reason)
     switch (reset_type) {
     case S390_RESET_EXTERNAL:
     case S390_RESET_REIPL:
+        /*
+         * Reset the subsystem which includes a AP reset. If a PV
+         * guest had APQNs attached the AP reset is a prerequisite to
+         * unprotecting since the UV checks if all APQNs are reset.
+         */
+        subsystem_reset();
         if (s390_is_pv()) {
             s390_machine_unprotect(ms);
         }
 
+        /*
+         * Device reset includes CPU clear resets so this has to be
+         * done AFTER the unprotect call above.
+         */
         qemu_devices_reset(reason);
         s390_crypto_reset();
 
@@ -743,6 +754,7 @@ static void ccw_machine_class_init(ObjectClass *oc, void *data)
     hc->unplug_request = s390_machine_device_unplug_request;
     nc->nmi_monitor_handler = s390_nmi;
     mc->default_ram_id = "s390.ram";
+    mc->default_nic = "virtio-net-ccw";
 
     object_class_property_add_bool(oc, "aes-key-wrap",
                                    machine_get_aes_key_wrap,
@@ -823,14 +835,38 @@ bool css_migration_enabled(void)
     }                                                                         \
     type_init(ccw_machine_register_##suffix)
 
+static void ccw_machine_8_2_instance_options(MachineState *machine)
+{
+}
+
+static void ccw_machine_8_2_class_options(MachineClass *mc)
+{
+}
+DEFINE_CCW_MACHINE(8_2, "8.2", true);
+
+static void ccw_machine_8_1_instance_options(MachineState *machine)
+{
+    ccw_machine_8_2_instance_options(machine);
+}
+
+static void ccw_machine_8_1_class_options(MachineClass *mc)
+{
+    ccw_machine_8_2_class_options(mc);
+    compat_props_add(mc->compat_props, hw_compat_8_1, hw_compat_8_1_len);
+}
+DEFINE_CCW_MACHINE(8_1, "8.1", false);
+
 static void ccw_machine_8_0_instance_options(MachineState *machine)
 {
+    ccw_machine_8_1_instance_options(machine);
 }
 
 static void ccw_machine_8_0_class_options(MachineClass *mc)
 {
+    ccw_machine_8_1_class_options(mc);
+    compat_props_add(mc->compat_props, hw_compat_8_0, hw_compat_8_0_len);
 }
-DEFINE_CCW_MACHINE(8_0, "8.0", true);
+DEFINE_CCW_MACHINE(8_0, "8.0", false);
 
 static void ccw_machine_7_2_instance_options(MachineState *machine)
 {

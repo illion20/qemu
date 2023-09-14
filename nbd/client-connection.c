@@ -146,8 +146,7 @@ static int nbd_connect(QIOChannelSocket *sioc, SocketAddress *addr,
         return 0;
     }
 
-    ret = nbd_receive_negotiate(NULL, QIO_CHANNEL(sioc), tlscreds,
-                                tlshostname,
+    ret = nbd_receive_negotiate(QIO_CHANNEL(sioc), tlscreds, tlshostname,
                                 outioc, info, errp);
     if (ret < 0) {
         /*
@@ -156,7 +155,7 @@ static int nbd_connect(QIOChannelSocket *sioc, SocketAddress *addr,
          * channel.
          */
         if (outioc && *outioc) {
-            qio_channel_close(QIO_CHANNEL(*outioc), NULL);
+            qio_channel_close(*outioc, NULL);
             object_unref(OBJECT(*outioc));
             *outioc = NULL;
         } else {
@@ -197,7 +196,7 @@ static void *connect_thread_func(void *opaque)
          * conn->updated_info will finally be returned to the user. Clear the
          * pointers to our internally allocated strings, which are IN parameters
          * of nbd_receive_negotiate() and therefore nbd_connect(). Caller
-         * shoudn't be interested in these fields.
+         * shouldn't be interested in these fields.
          */
         conn->updated_info.x_dirty_bitmap = NULL;
         conn->updated_info.name = NULL;

@@ -25,7 +25,7 @@
 
 #include "qemu/osdep.h"
 #include "qemu/int128.h"
-#include "tcg/tcg-op.h"
+#include "tcg/tcg-op-common.h"
 #include "tcg-internal.h"
 
 #define CASE_OP_32_64(x)                        \
@@ -190,7 +190,7 @@ static TCGTemp *find_better_copy(TCGContext *s, TCGTemp *ts)
         } else if (i->kind > ts->kind) {
             if (i->kind == TEMP_GLOBAL) {
                 g = i;
-            } else if (i->kind == TEMP_LOCAL) {
+            } else if (i->kind == TEMP_TB) {
                 l = i;
             }
         }
@@ -453,9 +453,7 @@ static uint64_t do_constant_folding_2(TCGOpcode op, uint64_t x, uint64_t y)
         return (uint64_t)x % ((uint64_t)y ? : 1);
 
     default:
-        fprintf(stderr,
-                "Unrecognized operation %d in do_constant_folding.\n", op);
-        tcg_abort();
+        g_assert_not_reached();
     }
 }
 
@@ -493,7 +491,7 @@ static bool do_constant_folding_cond_32(uint32_t x, uint32_t y, TCGCond c)
     case TCG_COND_GTU:
         return x > y;
     default:
-        tcg_abort();
+        g_assert_not_reached();
     }
 }
 
@@ -521,7 +519,7 @@ static bool do_constant_folding_cond_64(uint64_t x, uint64_t y, TCGCond c)
     case TCG_COND_GTU:
         return x > y;
     default:
-        tcg_abort();
+        g_assert_not_reached();
     }
 }
 
@@ -541,7 +539,7 @@ static bool do_constant_folding_cond_eq(TCGCond c)
     case TCG_COND_EQ:
         return 1;
     default:
-        tcg_abort();
+        g_assert_not_reached();
     }
 }
 
@@ -1281,12 +1279,49 @@ static bool fold_ctpop(OptContext *ctx, TCGOp *op)
 
 static bool fold_deposit(OptContext *ctx, TCGOp *op)
 {
+    TCGOpcode and_opc;
+
     if (arg_is_const(op->args[1]) && arg_is_const(op->args[2])) {
         uint64_t t1 = arg_info(op->args[1])->val;
         uint64_t t2 = arg_info(op->args[2])->val;
 
         t1 = deposit64(t1, op->args[3], op->args[4], t2);
         return tcg_opt_gen_movi(ctx, op, op->args[0], t1);
+    }
+
+    switch (ctx->type) {
+    case TCG_TYPE_I32:
+        and_opc = INDEX_op_and_i32;
+        break;
+    case TCG_TYPE_I64:
+        and_opc = INDEX_op_and_i64;
+        break;
+    default:
+        g_assert_not_reached();
+    }
+
+    /* Inserting a value into zero at offset 0. */
+    if (arg_is_const(op->args[1])
+        && arg_info(op->args[1])->val == 0
+        && op->args[3] == 0) {
+        uint64_t mask = MAKE_64BIT_MASK(0, op->args[4]);
+
+        op->opc = and_opc;
+        op->args[1] = op->args[2];
+        op->args[2] = temp_arg(tcg_constant_internal(ctx->type, mask));
+        ctx->z_mask = mask & arg_info(op->args[1])->z_mask;
+        return false;
+    }
+
+    /* Inserting zero into a value. */
+    if (arg_is_const(op->args[2])
+        && arg_info(op->args[2])->val == 0) {
+        uint64_t mask = deposit64(-1, op->args[3], op->args[4], 0);
+
+        op->opc = and_opc;
+        op->args[2] = temp_arg(tcg_constant_internal(ctx->type, mask));
+        ctx->z_mask = mask & arg_info(op->args[1])->z_mask;
+        return false;
     }
 
     ctx->z_mask = deposit64(arg_info(op->args[1])->z_mask,
@@ -1532,14 +1567,22 @@ static bool fold_movcond(OptContext *ctx, TCGOp *op)
     if (arg_is_const(op->args[3]) && arg_is_const(op->args[4])) {
         uint64_t tv = arg_info(op->args[3])->val;
         uint64_t fv = arg_info(op->args[4])->val;
-        TCGOpcode opc;
+        TCGOpcode opc, negopc = 0;
 
         switch (ctx->type) {
         case TCG_TYPE_I32:
             opc = INDEX_op_setcond_i32;
+            if (TCG_TARGET_HAS_negsetcond_i32) {
+                negopc = INDEX_op_negsetcond_i32;
+            }
+            tv = (int32_t)tv;
+            fv = (int32_t)fv;
             break;
         case TCG_TYPE_I64:
             opc = INDEX_op_setcond_i64;
+            if (TCG_TARGET_HAS_negsetcond_i64) {
+                negopc = INDEX_op_negsetcond_i64;
+            }
             break;
         default:
             g_assert_not_reached();
@@ -1551,6 +1594,14 @@ static bool fold_movcond(OptContext *ctx, TCGOp *op)
         } else if (fv == 1 && tv == 0) {
             op->opc = opc;
             op->args[3] = tcg_invert_cond(cond);
+        } else if (negopc) {
+            if (tv == -1 && fv == 0) {
+                op->opc = negopc;
+                op->args[3] = cond;
+            } else if (fv == -1 && tv == 0) {
+                op->opc = negopc;
+                op->args[3] = tcg_invert_cond(cond);
+            }
         }
     }
     return false;
@@ -1760,6 +1811,26 @@ static bool fold_setcond(OptContext *ctx, TCGOp *op)
     ctx->s_mask = smask_from_zmask(1);
     return false;
 }
+
+static bool fold_negsetcond(OptContext *ctx, TCGOp *op)
+{
+    TCGCond cond = op->args[3];
+    int i;
+
+    if (swap_commutative(op->args[0], &op->args[1], &op->args[2])) {
+        op->args[3] = cond = tcg_swap_cond(cond);
+    }
+
+    i = do_constant_folding_cond(ctx->type, op->args[1], op->args[2], cond);
+    if (i >= 0) {
+        return tcg_opt_gen_movi(ctx, op, op->args[0], -i);
+    }
+
+    /* Value is {0,-1} so all bits are repetitions of the sign. */
+    ctx->s_mask = -1;
+    return false;
+}
+
 
 static bool fold_setcond2(OptContext *ctx, TCGOp *op)
 {
@@ -2186,13 +2257,22 @@ void tcg_optimize(TCGContext *s)
         CASE_OP_32_64_VEC(orc):
             done = fold_orc(&ctx, op);
             break;
-        case INDEX_op_qemu_ld_i32:
-        case INDEX_op_qemu_ld_i64:
+        case INDEX_op_qemu_ld_a32_i32:
+        case INDEX_op_qemu_ld_a64_i32:
+        case INDEX_op_qemu_ld_a32_i64:
+        case INDEX_op_qemu_ld_a64_i64:
+        case INDEX_op_qemu_ld_a32_i128:
+        case INDEX_op_qemu_ld_a64_i128:
             done = fold_qemu_ld(&ctx, op);
             break;
-        case INDEX_op_qemu_st_i32:
-        case INDEX_op_qemu_st8_i32:
-        case INDEX_op_qemu_st_i64:
+        case INDEX_op_qemu_st8_a32_i32:
+        case INDEX_op_qemu_st8_a64_i32:
+        case INDEX_op_qemu_st_a32_i32:
+        case INDEX_op_qemu_st_a64_i32:
+        case INDEX_op_qemu_st_a32_i64:
+        case INDEX_op_qemu_st_a64_i64:
+        case INDEX_op_qemu_st_a32_i128:
+        case INDEX_op_qemu_st_a64_i128:
             done = fold_qemu_st(&ctx, op);
             break;
         CASE_OP_32_64(rem):
@@ -2208,6 +2288,9 @@ void tcg_optimize(TCGContext *s)
             break;
         CASE_OP_32_64(setcond):
             done = fold_setcond(&ctx, op);
+            break;
+        CASE_OP_32_64(negsetcond):
+            done = fold_negsetcond(&ctx, op);
             break;
         case INDEX_op_setcond2_i32:
             done = fold_setcond2(&ctx, op);

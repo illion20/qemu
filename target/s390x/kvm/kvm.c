@@ -50,17 +50,7 @@
 #include "exec/memattrs.h"
 #include "hw/s390x/s390-virtio-ccw.h"
 #include "hw/s390x/s390-virtio-hcall.h"
-#include "hw/s390x/pv.h"
-
-#ifndef DEBUG_KVM
-#define DEBUG_KVM  0
-#endif
-
-#define DPRINTF(fmt, ...) do {                \
-    if (DEBUG_KVM) {                          \
-        fprintf(stderr, fmt, ## __VA_ARGS__); \
-    }                                         \
-} while (0)
+#include "target/s390x/kvm/pv.h"
 
 #define kvm_vm_check_mem_attr(s, attr) \
     kvm_vm_check_attr(s, KVM_S390_VM_MEM_CTRL, attr)
@@ -250,7 +240,7 @@ static void kvm_s390_enable_cmma(void)
     trace_kvm_enable_cmma(rc);
 }
 
-static void kvm_s390_set_attr(uint64_t attr)
+static void kvm_s390_set_crypto_attr(uint64_t attr)
 {
     struct kvm_device_attr attribute = {
         .group = KVM_S390_VM_CRYPTO,
@@ -275,7 +265,7 @@ static void kvm_s390_init_aes_kw(void)
     }
 
     if (kvm_vm_check_attr(kvm_state, KVM_S390_VM_CRYPTO, attr)) {
-            kvm_s390_set_attr(attr);
+            kvm_s390_set_crypto_attr(attr);
     }
 }
 
@@ -289,7 +279,7 @@ static void kvm_s390_init_dea_kw(void)
     }
 
     if (kvm_vm_check_attr(kvm_state, KVM_S390_VM_CRYPTO, attr)) {
-            kvm_s390_set_attr(attr);
+            kvm_s390_set_crypto_attr(attr);
     }
 }
 
@@ -338,6 +328,11 @@ static void ccw_machine_class_foreach(ObjectClass *oc, void *opaque)
     MachineClass *mc = MACHINE_CLASS(oc);
 
     mc->default_cpu_type = S390_CPU_TYPE_NAME("host");
+}
+
+int kvm_arch_get_default_type(MachineState *ms)
+{
+    return 0;
 }
 
 int kvm_arch_init(MachineState *ms, KVMState *s)
@@ -912,11 +907,11 @@ static void determine_sw_breakpoint_instr(void)
         if (kvm_vm_enable_cap(kvm_state, KVM_CAP_S390_USER_INSTR0, 0)) {
             sw_bp_inst = diag_501;
             sw_bp_ilen = sizeof(diag_501);
-            DPRINTF("KVM: will use 4-byte sw breakpoints.\n");
+            trace_kvm_sw_breakpoint(4);
         } else {
             sw_bp_inst = instr_0x0000;
             sw_bp_ilen = sizeof(instr_0x0000);
-            DPRINTF("KVM: will use 2-byte sw breakpoints.\n");
+            trace_kvm_sw_breakpoint(2);
         }
 }
 
@@ -995,8 +990,7 @@ static int insert_hw_breakpoint(target_ulong addr, int len, int type)
     return 0;
 }
 
-int kvm_arch_insert_hw_breakpoint(target_ulong addr,
-                                  target_ulong len, int type)
+int kvm_arch_insert_hw_breakpoint(vaddr addr, vaddr len, int type)
 {
     switch (type) {
     case GDB_BREAKPOINT_HW:
@@ -1014,8 +1008,7 @@ int kvm_arch_insert_hw_breakpoint(target_ulong addr,
     return insert_hw_breakpoint(addr, len, type);
 }
 
-int kvm_arch_remove_hw_breakpoint(target_ulong addr,
-                                  target_ulong len, int type)
+int kvm_arch_remove_hw_breakpoint(vaddr addr, vaddr len, int type)
 {
     int size;
     struct kvm_hw_breakpoint *bp = find_hw_breakpoint(addr, len, type);
@@ -1307,7 +1300,7 @@ static int handle_b2(S390CPU *cpu, struct kvm_run *run, uint8_t ipa1)
         break;
     default:
         rc = -1;
-        DPRINTF("KVM: unhandled PRIV: 0xb2%x\n", ipa1);
+        trace_kvm_insn_unhandled_priv(ipa1);
         break;
     }
 
@@ -1487,7 +1480,7 @@ static int handle_b9(S390CPU *cpu, struct kvm_run *run, uint8_t ipa1)
         break;
     default:
         r = -1;
-        DPRINTF("KVM: unhandled PRIV: 0xb9%x\n", ipa1);
+        trace_kvm_insn_unhandled_priv(ipa1);
         break;
     }
 
@@ -1511,7 +1504,7 @@ static int handle_eb(S390CPU *cpu, struct kvm_run *run, uint8_t ipbl)
         break;
     default:
         r = -1;
-        DPRINTF("KVM: unhandled PRIV: 0xeb%x\n", ipbl);
+        trace_kvm_insn_unhandled_priv(ipbl);
         break;
     }
 
@@ -1531,7 +1524,7 @@ static int handle_e3(S390CPU *cpu, struct kvm_run *run, uint8_t ipbl)
         break;
     default:
         r = -1;
-        DPRINTF("KVM: unhandled PRIV: 0xe3%x\n", ipbl);
+        trace_kvm_insn_unhandled_priv(ipbl);
         break;
     }
 
@@ -1654,7 +1647,7 @@ static int handle_diag(S390CPU *cpu, struct kvm_run *run, uint32_t ipb)
         r = handle_sw_breakpoint(cpu, run);
         break;
     default:
-        DPRINTF("KVM: unknown DIAG: 0x%x\n", func_code);
+        trace_kvm_insn_diag(func_code);
         kvm_s390_program_interrupt(cpu, PGM_SPECIFICATION);
         break;
     }
@@ -1684,8 +1677,7 @@ static int handle_instruction(S390CPU *cpu, struct kvm_run *run)
     uint8_t ipa1 = run->s390_sieic.ipa & 0x00ff;
     int r = -1;
 
-    DPRINTF("handle_instruction 0x%x 0x%x\n",
-            run->s390_sieic.ipa, run->s390_sieic.ipb);
+    trace_kvm_insn(run->s390_sieic.ipa, run->s390_sieic.ipb);
     switch (ipa0) {
     case IPA0_B2:
         r = handle_b2(cpu, run, ipa1);
@@ -1765,7 +1757,7 @@ static int handle_intercept(S390CPU *cpu)
     int icpt_code = run->s390_sieic.icptcode;
     int r = 0;
 
-    DPRINTF("intercept: 0x%x (at 0x%lx)\n", icpt_code, (long)run->psw_addr);
+    trace_kvm_intercept(icpt_code, (long)run->psw_addr);
     switch (icpt_code) {
         case ICPT_INSTRUCTION:
         case ICPT_PV_INSTR:
@@ -2150,13 +2142,13 @@ int kvm_arch_fixup_msi_route(struct kvm_irq_routing_entry *route,
     uint32_t vec = data & ZPCI_MSI_VEC_MASK;
 
     if (!dev) {
-        DPRINTF("add_msi_route no pci device\n");
+        trace_kvm_msi_route_fixup("no pci device");
         return -ENODEV;
     }
 
     pbdev = s390_pci_find_dev_by_target(s390_get_phb(), DEVICE(dev)->id);
     if (!pbdev) {
-        DPRINTF("add_msi_route no zpci device\n");
+        trace_kvm_msi_route_fixup("no zpci device");
         return -ENODEV;
     }
 
@@ -2294,6 +2286,53 @@ static int configure_cpu_subfunc(const S390FeatBitmap features)
         s390_fill_feat_block(features, S390_FEAT_TYPE_DFLTCC, prop.dfltcc);
     }
     return kvm_vm_ioctl(kvm_state, KVM_SET_DEVICE_ATTR, &attr);
+}
+
+static bool ap_available(void)
+{
+    return kvm_vm_check_attr(kvm_state, KVM_S390_VM_CRYPTO,
+                             KVM_S390_VM_CRYPTO_ENABLE_APIE);
+}
+
+static bool ap_enabled(const S390FeatBitmap features)
+{
+    return test_bit(S390_FEAT_AP, features);
+}
+
+static bool uv_feat_supported(void)
+{
+    return kvm_vm_check_attr(kvm_state, KVM_S390_VM_CPU_MODEL,
+                             KVM_S390_VM_CPU_PROCESSOR_UV_FEAT_GUEST);
+}
+
+static int query_uv_feat_guest(S390FeatBitmap features)
+{
+    struct kvm_s390_vm_cpu_uv_feat prop = {};
+    struct kvm_device_attr attr = {
+        .group = KVM_S390_VM_CPU_MODEL,
+        .attr = KVM_S390_VM_CPU_MACHINE_UV_FEAT_GUEST,
+        .addr = (uint64_t) &prop,
+    };
+    int rc;
+
+    /* AP support check is currently the only user of the UV feature test */
+    if (!(uv_feat_supported() && ap_available())) {
+        return 0;
+    }
+
+    rc = kvm_vm_ioctl(kvm_state, KVM_GET_DEVICE_ATTR, &attr);
+    if (rc) {
+        return  rc;
+    }
+
+    if (prop.ap) {
+        set_bit(S390_FEAT_UV_FEAT_AP, features);
+    }
+    if (prop.ap_intr) {
+        set_bit(S390_FEAT_UV_FEAT_AP_INTR, features);
+    }
+
+    return 0;
 }
 
 static int kvm_to_feat[][2] = {
@@ -2475,8 +2514,7 @@ void kvm_s390_get_host_cpu_model(S390CPUModel *model, Error **errp)
         return;
     }
     /* for now, we can only provide the AP feature with HW support */
-    if (kvm_vm_check_attr(kvm_state, KVM_S390_VM_CRYPTO,
-        KVM_S390_VM_CRYPTO_ENABLE_APIE)) {
+    if (ap_available()) {
         set_bit(S390_FEAT_AP, model->features);
     }
 
@@ -2491,9 +2529,36 @@ void kvm_s390_get_host_cpu_model(S390CPUModel *model, Error **errp)
         set_bit(S390_FEAT_DIAG_318, model->features);
     }
 
+    /* Test for Ultravisor features that influence secure guest behavior */
+    query_uv_feat_guest(model->features);
+
     /* strip of features that are not part of the maximum model */
     bitmap_and(model->features, model->features, model->def->full_feat,
                S390_FEAT_MAX);
+}
+
+static int configure_uv_feat_guest(const S390FeatBitmap features)
+{
+    struct kvm_s390_vm_cpu_uv_feat uv_feat = {};
+    struct kvm_device_attr attribute = {
+        .group = KVM_S390_VM_CPU_MODEL,
+        .attr = KVM_S390_VM_CPU_PROCESSOR_UV_FEAT_GUEST,
+        .addr = (__u64) &uv_feat,
+    };
+
+    /* AP support check is currently the only user of the UV feature test */
+    if (!(uv_feat_supported() && ap_enabled(features))) {
+        return 0;
+    }
+
+    if (test_bit(S390_FEAT_UV_FEAT_AP, features)) {
+        uv_feat.ap = 1;
+    }
+    if (test_bit(S390_FEAT_UV_FEAT_AP_INTR, features)) {
+        uv_feat.ap_intr = 1;
+    }
+
+    return kvm_vm_ioctl(kvm_state, KVM_SET_DEVICE_ATTR, &attribute);
 }
 
 static void kvm_s390_configure_apie(bool interpret)
@@ -2502,7 +2567,7 @@ static void kvm_s390_configure_apie(bool interpret)
                                 KVM_S390_VM_CRYPTO_DISABLE_APIE;
 
     if (kvm_vm_check_attr(kvm_state, KVM_S390_VM_CRYPTO, attr)) {
-        kvm_s390_set_attr(attr);
+        kvm_s390_set_crypto_attr(attr);
     }
 }
 
@@ -2556,8 +2621,15 @@ void kvm_s390_apply_cpu_model(const S390CPUModel *model, Error **errp)
         kvm_s390_enable_cmma();
     }
 
-    if (test_bit(S390_FEAT_AP, model->features)) {
+    if (ap_enabled(model->features)) {
         kvm_s390_configure_apie(true);
+    }
+
+    /* configure UV-features for the guest indicated via query / test_bit */
+    rc = configure_uv_feat_guest(model->features);
+    if (rc) {
+        error_setg(errp, "KVM: Error configuring CPU UV features %d", rc);
+        return;
     }
 }
 

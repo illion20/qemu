@@ -11,6 +11,7 @@ tests = {
   'check-qobject': [],
   'check-qjson': [],
   'check-qlit': [],
+  'test-error-report': [],
   'test-qobject-output-visitor': [testqapi],
   'test-clone-visitor': [testqapi],
   'test-qobject-input-visitor': [testqapi],
@@ -35,6 +36,7 @@ tests = {
   'test-rcu-slist': [],
   'test-qdist': [],
   'test-qht': [],
+  'test-qtree': [],
   'test-bitops': [],
   'test-bitcnt': [],
   'test-qgraph': ['../qtest/libqos/qgraph.c'],
@@ -46,8 +48,8 @@ tests = {
   'test-uuid': [],
   'ptimer-test': ['ptimer-test-stubs.c', meson.project_source_root() / 'hw/core/ptimer.c'],
   'test-qapi-util': [],
-  'test-smp-parse': [qom, meson.project_source_root() / 'hw/core/machine-smp.c'],
   'test-interval-tree': [],
+  'test-xs-node': [qom],
 }
 
 if have_system or have_tools
@@ -96,7 +98,7 @@ if have_block
   }
   if gnutls.found() and \
      tasn1.found() and \
-     'CONFIG_POSIX' in config_host
+     targetos != 'windows'
     tests += {
       'test-crypto-tlscredsx509': ['crypto-tls-x509-helpers.c', 'pkix_asn1_tab.c',
                                    tasn1, crypto, gnutls],
@@ -111,17 +113,17 @@ if have_block
   if xts == 'private'
     tests += {'test-crypto-xts': [crypto, io]}
   endif
-  if 'CONFIG_POSIX' in config_host
-    tests += {'test-image-locking': [testblock]}
+  if targetos != 'windows'
+    tests += {
+      'test-image-locking': [testblock],
+      'test-nested-aio-poll': [testblock],
+    }
   endif
   if config_host_data.get('CONFIG_REPLICATION')
     tests += {'test-replication': [testblock]}
   endif
   if nettle.found() or gcrypt.found()
     tests += {'test-crypto-pbkdf': [io]}
-  endif
-  if config_host_data.get('CONFIG_EPOLL_CREATE1')
-    tests += {'test-fdmon-epoll': [testblock]}
   endif
 endif
 
@@ -134,6 +136,7 @@ if have_system
     'test-util-sockets': ['socket-helpers.c'],
     'test-base64': [],
     'test-bufferiszero': [],
+    'test-smp-parse': [qom, meson.project_source_root() / 'hw/core/machine-smp.c'],
     'test-vmstate': [migration, io],
     'test-yank': ['socket-helpers.c', qom, io, chardev]
   }
@@ -144,8 +147,8 @@ if have_system
   # Some tests: test-char, test-qdev-global-props, and test-qga,
   # are not runnable under TSan due to a known issue.
   # https://github.com/google/sanitizers/issues/1116
-  if 'CONFIG_TSAN' not in config_host
-    if 'CONFIG_POSIX' in config_host
+  if not get_option('tsan')
+    if targetos != 'windows'
         tests += {
           'test-char': ['socket-helpers.c', qom, io, chardev]
         }

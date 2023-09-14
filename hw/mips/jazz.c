@@ -125,7 +125,7 @@ static void mips_jazz_init(MachineState *machine,
 {
     MemoryRegion *address_space = get_system_memory();
     char *filename;
-    int bios_size, n, big_endian;
+    int bios_size, n;
     Clock *cpuclk;
     MIPSCPU *cpu;
     MIPSCPUClass *mcc;
@@ -156,12 +156,6 @@ static void mips_jazz_init(MachineState *machine,
         [JAZZ_MAGNUM] = {50000000, 2},
         [JAZZ_PICA61] = {33333333, 4},
     };
-
-#if TARGET_BIG_ENDIAN
-    big_endian = 1;
-#else
-    big_endian = 0;
-#endif
 
     if (machine->ram_size > 256 * MiB) {
         error_report("RAM size more than 256Mb is not supported");
@@ -249,7 +243,7 @@ static void mips_jazz_init(MachineState *machine,
 
     /* ISA devices */
     i8259 = i8259_init(isa_bus, env->irq[4]);
-    isa_bus_irqs(isa_bus, i8259);
+    isa_bus_register_input_irqs(isa_bus, i8259);
     i8257_dma_init(isa_bus, 0);
     pit = i8254_pit_init(isa_bus, 0x40, 0, NULL);
     pcspk_init(isa_new(TYPE_PC_SPEAKER), isa_bus, pit);
@@ -301,7 +295,7 @@ static void mips_jazz_init(MachineState *machine,
             dev = qdev_new("dp8393x");
             qdev_set_nic_properties(dev, nd);
             qdev_prop_set_uint8(dev, "it_shift", 2);
-            qdev_prop_set_bit(dev, "big_endian", big_endian > 0);
+            qdev_prop_set_bit(dev, "big_endian", TARGET_BIG_ENDIAN);
             object_property_set_link(OBJECT(dev), "dma_mr",
                                      OBJECT(rc4030_dma_mr), &error_abort);
             sysbus = SYS_BUS_DEVICE(dev);

@@ -448,7 +448,7 @@ static int load_flat_file(struct linux_binprm * bprm,
      * Allocate the address space.
      */
     probe_guest_base(bprm->filename, 0,
-                     text_len + data_len + extra + indx_len);
+                     text_len + data_len + extra + indx_len - 1);
 
     /*
      * there are a couple of cases here,  the separate code/data
@@ -780,7 +780,7 @@ int load_flt_binary(struct linux_binprm *bprm, struct image_info *info)
     /* Enforce final stack alignment of 16 bytes.  This is sufficient
        for all current targets, and excess alignment is harmless.  */
     stack_len = bprm->envc + bprm->argc + 2;
-    stack_len += flat_argvp_envp_on_stack() ? 2 : 0; /* arvg, argp */
+    stack_len += flat_argvp_envp_on_stack() ? 2 : 0; /* argv, argp */
     stack_len += 1; /* argc */
     stack_len *= sizeof(abi_ulong);
     sp -= (sp - stack_len) & 15;
@@ -811,7 +811,7 @@ int load_flt_binary(struct linux_binprm *bprm, struct image_info *info)
     info->end_code = libinfo[0].start_code + libinfo[0].text_len;
     info->start_data = libinfo[0].start_data;
     info->end_data = libinfo[0].end_data;
-    info->start_brk = libinfo[0].start_brk;
+    info->brk = libinfo[0].start_brk;
     info->start_stack = sp;
     info->stack_limit = libinfo[0].start_brk;
     info->entry = start_addr;

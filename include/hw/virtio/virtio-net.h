@@ -109,7 +109,7 @@ typedef struct VirtioNetRscSeg {
     size_t size;
     uint16_t packets;
     uint16_t dup_ack;
-    bool is_coalesced;      /* need recal ipv4 header checksum, mark here */
+    bool is_coalesced;      /* need recall ipv4 header checksum, mark here */
     VirtioNetRscUnit unit;
     NetClientState *nc;
 } VirtioNetRscSeg;
@@ -227,5 +227,6 @@ size_t virtio_net_handle_ctrl_iov(VirtIODevice *vdev,
                                   unsigned out_num);
 void virtio_net_set_netclient_name(VirtIONet *n, const char *name,
                                    const char *type);
+uint64_t virtio_net_supported_guest_offloads(const VirtIONet *n);
 
 #endif

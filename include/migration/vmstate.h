@@ -41,9 +41,11 @@ typedef struct VMStateField VMStateField;
  */
 struct VMStateInfo {
     const char *name;
-    int (*get)(QEMUFile *f, void *pv, size_t size, const VMStateField *field);
-    int (*put)(QEMUFile *f, void *pv, size_t size, const VMStateField *field,
-               JSONWriter *vmdesc);
+    int coroutine_mixed_fn (*get)(QEMUFile *f, void *pv, size_t size,
+                                  const VMStateField *field);
+    int coroutine_mixed_fn (*put)(QEMUFile *f, void *pv, size_t size,
+                                  const VMStateField *field,
+                                  JSONWriter *vmdesc);
 };
 
 enum VMStateFlags {
@@ -1209,7 +1211,15 @@ int vmstate_register_with_alias_id(VMStateIf *obj, uint32_t instance_id,
                                    int required_for_version,
                                    Error **errp);
 
-/* Returns: 0 on success, -1 on failure */
+/**
+ * vmstate_register() - legacy function to register state
+ * serialisation description
+ *
+ * New code shouldn't be using this function as QOM-ified devices have
+ * dc->vmsd to store the serialisation description.
+ *
+ * Returns: 0 on success, -1 on failure
+ */
 static inline int vmstate_register(VMStateIf *obj, int instance_id,
                                    const VMStateDescription *vmsd,
                                    void *opaque)

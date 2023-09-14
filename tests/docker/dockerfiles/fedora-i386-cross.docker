@@ -24,6 +24,7 @@ ENV PACKAGES \
     nettle-devel.i686 \
     pcre-devel.i686 \
     pixman-devel.i686 \
+    python3-tomli \
     sysprof-capture-devel.i686 \
     zlib-devel.i686
 
@@ -32,3 +33,8 @@ ENV PKG_CONFIG_LIBDIR /usr/lib/pkgconfig
 
 RUN dnf update -y && dnf install -y $PACKAGES
 RUN rpm -q $PACKAGES | sort > /packages.txt
+# As a final step configure the user (if env is defined)
+ARG USER
+ARG UID
+RUN if [ "${USER}" ]; then \
+  id ${USER} 2>/dev/null || useradd -u ${UID} -U ${USER}; fi

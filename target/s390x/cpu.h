@@ -29,11 +29,14 @@
 #include "cpu_models.h"
 #include "exec/cpu-defs.h"
 #include "qemu/cpu-float.h"
+#include "tcg/tcg_s390x.h"
 
 #define ELF_MACHINE_UNAME "S390X"
 
 /* The z/Architecture has a strong memory model with some store-after-load re-ordering */
 #define TCG_GUEST_DEFAULT_MO      (TCG_MO_ALL & ~TCG_MO_ST_LD)
+
+#define TARGET_HAS_PRECISE_SMC
 
 #define TARGET_INSN_START_EXTRA_WORDS 2
 
@@ -75,9 +78,6 @@ struct CPUArchState {
 
     float_status fpu_status; /* passed to softfloat lib */
 
-    /* The low part of a 128-bit return, or remainder of a divide.  */
-    uint64_t retxl;
-
     PSW psw;
 
     S390CrashReason crash_reason;
@@ -87,6 +87,7 @@ struct CPUArchState {
     uint64_t cc_vr;
 
     uint64_t ex_value;
+    uint64_t ex_target;
 
     uint64_t __excp_addr;
     uint64_t psa;
@@ -292,6 +293,7 @@ extern const VMStateDescription vmstate_s390_cpu;
 #define PSW_MASK_32             0x0000000080000000ULL
 #define PSW_MASK_SHORT_ADDR     0x000000007fffffffULL
 #define PSW_MASK_SHORT_CTRL     0xffffffff80000000ULL
+#define PSW_MASK_RESERVED       0xb80800fe7fffffffULL
 
 #undef PSW_ASC_PRIMARY
 #undef PSW_ASC_ACCREG
@@ -378,9 +380,17 @@ static inline int cpu_mmu_index(CPUS390XState *env, bool ifetch)
 #endif
 }
 
-static inline void cpu_get_tb_cpu_state(CPUS390XState* env, target_ulong *pc,
-                                        target_ulong *cs_base, uint32_t *flags)
+static inline void cpu_get_tb_cpu_state(CPUS390XState *env, vaddr *pc,
+                                        uint64_t *cs_base, uint32_t *flags)
 {
+    if (env->psw.addr & 1) {
+        /*
+         * Instructions must be at even addresses.
+         * This needs to be checked before address translation.
+         */
+        env->int_pgm_ilen = 2; /* see s390_cpu_tlb_fill() */
+        tcg_s390_program_interrupt(env, PGM_SPECIFICATION, 0);
+    }
     *pc = env->psw.addr;
     *cs_base = env->ex_value;
     *flags = (env->psw.mask >> FLAG_MASK_PSW_SHIFT) & FLAG_MASK_PSW;

@@ -108,7 +108,7 @@ static void report_divergance(ExecState *us, ExecState *them)
 
     /*
      * If we have diverged before did we get back on track or are we
-     * totally loosing it?
+     * totally losing it?
      */
     if (divergence_log) {
         DivergeState *last = (DivergeState *) divergence_log->data;
@@ -130,11 +130,13 @@ static void report_divergance(ExecState *us, ExecState *them)
         }
     }
     divergence_log = g_slist_prepend(divergence_log,
-                                     g_memdup(&divrec, sizeof(divrec)));
+                                     g_memdup2(&divrec, sizeof(divrec)));
 
     /* Output short log entry of going out of sync... */
     if (verbose || divrec.distance == 1 || diverged) {
-        g_string_printf(out, "@ 0x%016lx vs 0x%016lx (%d/%d since last)\n",
+        g_string_printf(out,
+                        "@ 0x%016" PRIx64 " vs 0x%016" PRIx64
+                        " (%d/%d since last)\n",
                         us->pc, them->pc, g_slist_length(divergence_log),
                         divrec.distance);
         qemu_plugin_outs(out->str);
@@ -144,7 +146,9 @@ static void report_divergance(ExecState *us, ExecState *them)
         int i;
         GSList *entry;
 
-        g_string_printf(out, "Δ insn_count @ 0x%016lx (%ld) vs 0x%016lx (%ld)\n",
+        g_string_printf(out,
+                        "Δ insn_count @ 0x%016" PRIx64
+                        " (%ld) vs 0x%016" PRIx64 " (%ld)\n",
                         us->pc, us->insn_count, them->pc, them->insn_count);
 
         for (entry = log, i = 0;
@@ -152,7 +156,8 @@ static void report_divergance(ExecState *us, ExecState *them)
              entry = g_slist_next(entry), i++) {
             ExecInfo *prev = (ExecInfo *) entry->data;
             g_string_append_printf(out,
-                                   "  previously @ 0x%016lx/%ld (%ld insns)\n",
+                                   "  previously @ 0x%016" PRIx64 "/%" PRId64
+                                   " (%ld insns)\n",
                                    prev->block->pc, prev->block->insns,
                                    prev->insn_count);
         }
@@ -323,7 +328,7 @@ QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id,
 
     for (i = 0; i < argc; i++) {
         char *p = argv[i];
-        g_autofree char **tokens = g_strsplit(p, "=", 2);
+        g_auto(GStrv) tokens = g_strsplit(p, "=", 2);
 
         if (g_strcmp0(tokens[0], "verbose") == 0) {
             if (!qemu_plugin_bool_parse(tokens[0], tokens[1], &verbose)) {

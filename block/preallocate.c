@@ -535,7 +535,7 @@ static void preallocate_child_perm(BlockDriverState *bs, BdrvChild *c,
     }
 }
 
-BlockDriver bdrv_preallocate_filter = {
+static BlockDriver bdrv_preallocate_filter = {
     .format_name = "preallocate",
     .instance_size = sizeof(BDRVPreallocateState),
 
@@ -558,7 +558,6 @@ BlockDriver bdrv_preallocate_filter = {
     .bdrv_set_perm = preallocate_set_perm,
     .bdrv_child_perm = preallocate_child_perm,
 
-    .has_variable_length = true,
     .is_filter = true,
 };
 

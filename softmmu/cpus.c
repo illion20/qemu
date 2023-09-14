@@ -405,7 +405,7 @@ static void qemu_cpu_stop(CPUState *cpu, bool exit)
 
 void qemu_wait_io_event_common(CPUState *cpu)
 {
-    qatomic_mb_set(&cpu->thread_kicked, false);
+    qatomic_set_mb(&cpu->thread_kicked, false);
     if (cpu->stop) {
         qemu_cpu_stop(cpu, false);
     }
@@ -427,12 +427,6 @@ void qemu_wait_io_event(CPUState *cpu)
         qemu_plugin_vcpu_resume_cb(cpu);
     }
 
-#ifdef _WIN32
-    /* Eat dummy APC queued by cpus_kick_thread. */
-    if (hax_enabled()) {
-        SleepEx(0, TRUE);
-    }
-#endif
     qemu_wait_io_event_common(cpu);
 }
 

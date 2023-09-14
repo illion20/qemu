@@ -259,11 +259,16 @@ static void icount_warp_rt(void)
         warp_delta = clock - timers_state.vm_clock_warp_start;
         if (icount_enabled() == 2) {
             /*
-             * In adaptive mode, do not let QEMU_CLOCK_VIRTUAL run too
-             * far ahead of real time.
+             * In adaptive mode, do not let QEMU_CLOCK_VIRTUAL run too far
+             * ahead of real time (it might already be ahead so careful not
+             * to go backwards).
              */
             int64_t cur_icount = icount_get_locked();
             int64_t delta = clock - cur_icount;
+
+            if (delta < 0) {
+                delta = 0;
+            }
             warp_delta = MIN(warp_delta, delta);
         }
         qatomic_set_i64(&timers_state.qemu_icount_bias,
@@ -320,7 +325,7 @@ void icount_start_warp_timer(void)
              * vCPU is sleeping and warp can't be started.
              * It is probably a race condition: notification sent
              * to vCPU was processed in advance and vCPU went to sleep.
-             * Therefore we have to wake it up for doing someting.
+             * Therefore we have to wake it up for doing something.
              */
             if (replay_has_event()) {
                 qemu_clock_notify(QEMU_CLOCK_VIRTUAL);
