@@ -87,7 +87,7 @@
     { \
         MachineClass *mc = MACHINE_CLASS(oc); \
         virt_machine_##major##_##minor##_options(mc); \
-        mc->desc = "DELL " # major "." # minor " ARM Virtual Machine"; \
+        mc->desc = "DELL " # major "." # minor " ARM Real Machine"; \
         if (latest) { \
             mc->alias = "virt"; \
         } \
@@ -1620,10 +1620,10 @@ static void virt_build_smbios(VirtMachineState *vms)
     uint8_t *smbios_tables, *smbios_anchor;
     size_t smbios_tables_len, smbios_anchor_len;
     struct smbios_phys_mem_area mem_array;
-    const char *product = "DELL Virtual Machine";
+    const char *product = "DELL Real Machine";
 
     if (kvm_enabled()) {
-        product = "DELL Virtual Machine";
+        product = "DELL Real Machine";
     }
 
     smbios_set_defaults("DELL", product,

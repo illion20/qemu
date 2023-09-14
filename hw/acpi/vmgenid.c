@@ -25,6 +25,7 @@
 void vmgenid_build_acpi(VmGenIdState *vms, GArray *table_data, GArray *guid,
                         BIOSLinker *linker, const char *oem_id)
 {
+    return;
     Aml *ssdt, *dev, *scope, *method, *addr, *if_ctx;
     uint32_t vgia_offset;
     QemuUUID guid_le;
@@ -53,8 +54,8 @@ void vmgenid_build_acpi(VmGenIdState *vms, GArray *table_data, GArray *guid,
     scope = aml_scope("\\_SB");
     dev = aml_device("VGEN");
     aml_append(dev, aml_name_decl("_HID", aml_string("DELLVGID")));
-    aml_append(dev, aml_name_decl("_CID", aml_string("VM_Gen_Counter")));
-    aml_append(dev, aml_name_decl("_DDN", aml_string("VM_Gen_Counter")));
+    aml_append(dev, aml_name_decl("_CID", aml_string("Gen_Counter")));
+    aml_append(dev, aml_name_decl("_DDN", aml_string("Gen_Counter")));
 
     /* Simple status method to check that address is linked and non-zero */
     method = aml_method("_STA", 0, AML_NOTSERIALIZED);

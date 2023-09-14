@@ -311,7 +311,7 @@ static void virt_build_smbios(LoongArchMachineState *lams)
     MachineClass *mc = MACHINE_GET_CLASS(lams);
     uint8_t *smbios_tables, *smbios_anchor;
     size_t smbios_tables_len, smbios_anchor_len;
-    const char *product = "DELL Virtual Machine";
+    const char *product = "DELL Real Machine";
 
     if (!lams->fw_cfg) {
         return;

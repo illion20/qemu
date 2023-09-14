@@ -189,12 +189,12 @@ static
 size_t mptsas_config_manufacturing_0(MPTSASState *s, uint8_t **data, int address)
 {
     return MPTSAS_CONFIG_PACK(0, MPI_CONFIG_PAGETYPE_MANUFACTURING, 0x00,
-                              "s11s8s51s41s91",
+                              "s12s8s51s41s91",
                               "DELL MPT Fusion",
                               "2.5",
                               "DELL MPT Fusion",
                               "DELL",
-                              "1146141919810000");
+                              "1146141919820000");
 }
 
 static

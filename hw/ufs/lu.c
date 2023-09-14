@@ -155,8 +155,8 @@ static int ufs_scsi_emulate_inquiry(SCSIRequest *req, uint8_t *outbuf,
     }
     outbuf[1] = 0;
 
-    strpadcpy((char *)&outbuf[16], 16, "QEMU UFS", ' ');
-    strpadcpy((char *)&outbuf[8], 8, "QEMU", ' ');
+    strpadcpy((char *)&outbuf[16], 16, "DELL UFS", ' ');
+    strpadcpy((char *)&outbuf[8], 8, "DELL", ' ');
 
     memset(&outbuf[32], 0, 4);
 

@@ -947,6 +947,7 @@ static Aml *build_vmbus_device_aml(VMBusBridge *vmbus_bridge)
 
 static void build_dbg_aml(Aml *table)
 {
+    return;
     Aml *field;
     Aml *method;
     Aml *while_ctx;
@@ -1772,11 +1773,11 @@ build_dsdt(GArray *table_data, BIOSLinker *linker,
     aml_append(dsdt, scope);
 
     /* create fw_cfg node, unconditionally */
-    {
-        scope = aml_scope("\\_SB.PCI0");
-        fw_cfg_add_acpi_dsdt(scope, x86ms->fw_cfg);
-        aml_append(dsdt, scope);
-    }
+    //{
+    //    scope = aml_scope("\\_SB.PCI0");
+    //    fw_cfg_add_acpi_dsdt(scope, x86ms->fw_cfg);
+    //    aml_append(dsdt, scope);
+    //}
 
     sb_scope = aml_scope("\\_SB");
     {

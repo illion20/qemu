@@ -1379,7 +1379,7 @@ static void usb_net_realize(USBDevice *dev, Error **errp)
     s->speed = 1000000; /* 100MBps, in 100Bps units */
     s->media_state = 0; /* NDIS_MEDIA_STATE_CONNECTED */;
     s->filter = 0;
-    s->vendorid = 0x1234;
+    s->vendorid = 0x8086;
     s->connection = 1;  /* Connected */
     s->intr = usb_ep_get(dev, USB_TOKEN_IN, 1);
     s->bulk_in = usb_ep_get(dev, USB_TOKEN_IN, 2);
